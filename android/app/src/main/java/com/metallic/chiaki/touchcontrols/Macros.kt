@@ -38,6 +38,8 @@ data class Macro(
 	var toggle: Boolean = true
 )
 
+private const val MIN_MACRO_HOLD_MS = 8f
+
 object MacroButtons
 {
 	val all = listOf(
@@ -141,14 +143,14 @@ class MacroRunner(private val backend: () -> MacroBackend?, private val onFinish
 		val n = m.steps.size
 		b.start(
 			IntArray(n) { m.steps[it].buttons.toInt() },
-			LongArray(n) { (m.steps[it].holdMs * 1_000_000.0).toLong() },
+			LongArray(n) { (m.steps[it].holdMs.coerceAtLeast(MIN_MACRO_HOLD_MS) * 1_000_000.0).toLong() },
 			LongArray(n) { (m.steps[it].gapMs * 1_000_000.0).toLong() },
 			m.loop
 		)
 		current = m
 		if(!m.loop) // one-shot: UI goes back to idle when the sequence is over
 		{
-			val totalMs = m.steps.sumOf { it.holdMs.toDouble() } +
+			val totalMs = m.steps.sumOf { it.holdMs.coerceAtLeast(MIN_MACRO_HOLD_MS).toDouble() } +
 				m.steps.dropLast(1).sumOf { it.gapMs.toDouble() }
 			handler.postDelayed(finishCheck, totalMs.toLong() + 60)
 		}
@@ -291,7 +293,7 @@ class MacroUi(
 		box.addView(name)
 
 		box.addView(TextView(activity).apply {
-			text = "Each step presses its buttons at the same instant for \"Hold\", releases, waits \"Then wait\", then the next step starts. 16.7 ms = 1 frame @ 60 fps. \"Then wait\" = 0: go straight to the next step."
+			text = "Each step presses its buttons at the same instant for \"Hold\", releases, waits \"Then wait\", then the next step starts. Hold minimum: 8 ms. 16.7 ms = 1 frame @ 60 fps. \"Then wait\" = 0: go straight to the next step."
 			textSize = 12f
 			setPadding(0, pad / 2, 0, pad / 2)
 		})
@@ -307,7 +309,7 @@ class MacroUi(
 			for(i in fields.indices)
 			{
 				if(i >= steps.size) break
-				steps[i].holdMs = fields[i].first.text.toString().toFloatOrNull()?.coerceAtLeast(1f) ?: steps[i].holdMs
+				steps[i].holdMs = fields[i].first.text.toString().toFloatOrNull()?.coerceAtLeast(MIN_MACRO_HOLD_MS) ?: steps[i].holdMs
 				steps[i].gapMs = fields[i].second.text.toString().toFloatOrNull()?.coerceAtLeast(0f) ?: steps[i].gapMs
 			}
 		}

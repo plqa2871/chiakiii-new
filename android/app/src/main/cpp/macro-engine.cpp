@@ -23,7 +23,7 @@ struct macro_engine_t
 namespace
 {
 constexpr int64_t NS_PER_SEC = 1000000000LL;
-constexpr int64_t MIN_HOLD_NS = 1000000LL;        // 1 ms
+constexpr int64_t MIN_HOLD_NS = 8000000LL;        // 8 ms, minimum controller packet interval
 constexpr int64_t SPIN_NS = 300000LL;             // busy-wait for the last 0.3 ms => microsecond accuracy
 constexpr int64_t SLEEP_CHUNK_NS = 2000000LL;     // sleep in <= 2 ms chunks so stop() reacts quickly
 constexpr int64_t STALL_NS = 50000000LL;          // if we are >50 ms late (thread starved) don't burst to catch up
