@@ -148,7 +148,8 @@ class MacroRunner(private val backend: () -> MacroBackend?, private val onFinish
 		current = m
 		if(!m.loop) // one-shot: UI goes back to idle when the sequence is over
 		{
-			val totalMs = m.steps.sumOf { (it.holdMs + it.gapMs).toDouble() }
+			val totalMs = m.steps.sumOf { it.holdMs.toDouble() } +
+				m.steps.dropLast(1).sumOf { it.gapMs.toDouble() }
 			handler.postDelayed(finishCheck, totalMs.toLong() + 60)
 		}
 	}

@@ -3,6 +3,8 @@
 package com.metallic.chiaki.touchcontrols
 
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.MotionEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -109,9 +111,21 @@ class DefaultTouchControlsFragment : TouchControlsFragment()
 
 	override fun onPause()
 	{
+		releaseControls()
+		super.onPause()
+	}
+
+	fun releaseControls()
+	{
 		macroRunner?.stop()
 		macroUi?.refreshStates()
-		super.onPause()
+		view?.let { root ->
+			val now = SystemClock.uptimeMillis()
+			val cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, 0f, 0f, 0)
+			root.dispatchTouchEvent(cancel)
+			cancel.recycle()
+		}
+		ownControllerState = ControllerState()
 	}
 
 	override fun onDestroyView()

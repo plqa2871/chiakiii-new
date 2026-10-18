@@ -70,13 +70,15 @@ class ButtonView @JvmOverloads constructor(
 	/** only for the view that received the touch: pointer id -> buttons currently pressed by that finger */
 	private val owned = HashMap<Int, Set<ButtonView>>()
 
-	private fun addPresser(id: Int)
+	internal fun addPresser(id: Int)
 	{
 		pressers.add(id)
 		buttonPressed = true
 	}
 
-	private fun removePresser(id: Int)
+	internal fun addExternalPresser(id: Int) = addPresser(id)
+
+	internal fun removePresser(id: Int)
 	{
 		pressers.remove(id)
 		buttonPressed = pressers.isNotEmpty()
@@ -93,7 +95,7 @@ class ButtonView @JvmOverloads constructor(
 	}
 
 	/** Distance in px (screen scale) from a point in this view's local coordinates to the visible button; 0 = on it. */
-	private fun distanceTo(x: Float, y: Float): Float
+	internal fun distanceTo(x: Float, y: Float): Float
 	{
 		val l = paddingLeft.toFloat()
 		val t = paddingTop.toFloat()
@@ -140,30 +142,7 @@ class ButtonView @JvmOverloads constructor(
 		val group = parent as? ViewGroup ?: return emptySet()
 		val local = floatArrayOf(event.getX(pointerIndex), event.getY(pointerIndex))
 		matrix.mapPoints(local)
-		val px = local[0] + left
-		val py = local[1] + top
-		val slop = CHORD_SLOP_DP * resources.displayMetrics.density
-
-		val exact = ArrayList<ButtonView>()
-		val near = ArrayList<ButtonView>()
-		for(i in 0 until group.childCount)
-		{
-			val c = group.getChildAt(i) as? ButtonView ?: continue
-			if(c.visibility != VISIBLE)
-				continue
-			val p = c.fromParent(px, py) ?: continue
-			val d = c.distanceTo(p[0], p[1])
-			if(d <= 0f)
-				exact.add(c)
-			else if(d <= slop)
-				near.add(c)
-		}
-		return when
-		{
-			exact.isNotEmpty() -> (exact + near).toSet()
-			near.size >= 2 -> near.toSet()
-			else -> emptySet()
-		}
+		return buttonsAtPoint(group, local[0] + left, local[1] + top)
 	}
 
 	override fun onTouchEvent(event: MotionEvent): Boolean
@@ -218,7 +197,76 @@ class ButtonView @JvmOverloads constructor(
 
 	companion object
 	{
-		/** Two buttons whose visible edges are closer than 2x this value are pressed together when you touch between them. */
-		private const val CHORD_SLOP_DP = 6f
+		internal const val CHORD_SLOP_DP = 6f
+		internal const val TOUCH_SLOP_DP = 32f
+	}
+}
+
+internal fun buttonsAtPoint(root: ViewGroup, x: Float, y: Float): Set<ButtonView>
+{
+	val buttons = ArrayList<ButtonView>()
+	fun collect(view: View)
+	{
+		if(view.visibility != View.VISIBLE)
+			return
+		if(view is ButtonView)
+			buttons.add(view)
+		else if(view is ViewGroup)
+			for(i in 0 until view.childCount)
+				collect(view.getChildAt(i))
+	}
+	for(i in 0 until root.childCount)
+		collect(root.getChildAt(i))
+
+	fun toLocal(button: ButtonView): FloatArray?
+	{
+		val path = ArrayList<View>()
+		var current: View? = button
+		while(current != null && current !== root)
+		{
+			path.add(current)
+			current = current.parent as? View
+		}
+		if(current !== root)
+			return null
+
+		val point = floatArrayOf(x, y)
+		for(view in path.asReversed())
+		{
+			point[0] = point[0] - view.left
+			point[1] = point[1] - view.top
+			val inverse = Matrix()
+			if(!view.matrix.invert(inverse))
+				return null
+			inverse.mapPoints(point)
+		}
+		return point
+	}
+
+	val exact = ArrayList<ButtonView>()
+	val chord = ArrayList<ButtonView>()
+	var nearest: ButtonView? = null
+	var nearestDistance = Float.MAX_VALUE
+	val density = root.resources.displayMetrics.density
+	for(button in buttons)
+	{
+		val point = toLocal(button) ?: continue
+		val distance = button.distanceTo(point[0], point[1])
+		if(distance <= 0f)
+			exact.add(button)
+		if(distance <= ButtonView.CHORD_SLOP_DP * density)
+			chord.add(button)
+		if(distance < nearestDistance)
+		{
+			nearestDistance = distance
+			nearest = button
+		}
+	}
+	return when
+	{
+		exact.isNotEmpty() -> (exact + chord).toSet()
+		chord.size >= 2 -> chord.toSet()
+		nearest != null && nearestDistance <= ButtonView.TOUCH_SLOP_DP * density -> setOf(nearest)
+		else -> emptySet()
 	}
 }

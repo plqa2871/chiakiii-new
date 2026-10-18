@@ -49,6 +49,12 @@ class TouchTracker
 						currentPosition = Vector(event.getX(pointerIndex), event.getY(pointerIndex))
 				}
 			}
+
+			MotionEvent.ACTION_CANCEL ->
+			{
+				pointerId = null
+				currentPosition = null
+			}
 		}
 	}
 }

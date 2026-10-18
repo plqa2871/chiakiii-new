@@ -41,12 +41,14 @@ class StreamActivity : AppCompatActivity(), View.OnSystemUiVisibilityChangeListe
 	{
 		const val EXTRA_CONNECT_INFO = "connect_info"
 		private const val HIDE_UI_TIMEOUT_MS = 2000L
+		private const val STOP_SESSION_DELAY_MS = 2000L
 	}
 
 	private lateinit var viewModel: StreamViewModel
 	private lateinit var binding: ActivityStreamBinding
 
 	private val uiVisibilityHandler = Handler()
+	private val stopSessionRunnable = Runnable { viewModel.session.pause() }
 
 	override fun onCreate(savedInstanceState: Bundle?)
 	{
@@ -164,6 +166,7 @@ class StreamActivity : AppCompatActivity(), View.OnSystemUiVisibilityChangeListe
 	override fun onResume()
 	{
 		super.onResume()
+		uiVisibilityHandler.removeCallbacks(stopSessionRunnable)
 		hideSystemUI()
 		viewModel.session.resume()
 	}
@@ -171,11 +174,23 @@ class StreamActivity : AppCompatActivity(), View.OnSystemUiVisibilityChangeListe
 	override fun onPause()
 	{
 		super.onPause()
-		viewModel.session.pause()
+	}
+
+	override fun onStop()
+	{
+		super.onStop()
+		uiVisibilityHandler.removeCallbacks(stopSessionRunnable)
+		if(isFinishing)
+			viewModel.session.pause()
+		else if(!isChangingConfigurations)
+			uiVisibilityHandler.postDelayed(stopSessionRunnable, STOP_SESSION_DELAY_MS)
 	}
 
 	override fun onDestroy()
 	{
+		uiVisibilityHandler.removeCallbacks(stopSessionRunnable)
+		if(isFinishing)
+			viewModel.session.pause()
 		super.onDestroy()
 		controlsDisposable.dispose()
 	}
@@ -230,6 +245,8 @@ class StreamActivity : AppCompatActivity(), View.OnSystemUiVisibilityChangeListe
 		super.onWindowFocusChanged(hasFocus)
 		if(hasFocus)
 			hideSystemUI()
+		else if(::viewModel.isInitialized)
+			controlsFragment()?.releaseControls()
 	}
 
 	private fun hideSystemUI()

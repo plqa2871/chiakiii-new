@@ -141,12 +141,25 @@ class TouchpadView @JvmOverloads constructor(
 						acc
 					else
 					{
-						it.value.onMove(event.getX(event.actionIndex), event.getY(event.actionIndex))
+						it.value.onMove(event.getX(index), event.getY(index))
 						acc || state.setTouchPos(it.value.stateId, touchX(event, index), touchY(event, index))
 					}
 				}
 				if(changed)
 					triggerStateChanged()
+			}
+			MotionEvent.ACTION_CANCEL ->
+			{
+				pointerTouches.values.forEach { removeCallbacks(it.startButtonHoldRunnable) }
+				removeCallbacks(shortButtonPressLiftRunnable)
+				(pointerTouches.values.map { it.stateId } + shortPressingTouches.map { it.stateId })
+					.distinct()
+					.forEach { state.stopTouch(it) }
+				pointerTouches.clear()
+				shortPressingTouches = emptyList()
+				buttonHeld = false
+				state.buttons = state.buttons and ControllerState.BUTTON_TOUCHPAD.inv()
+				triggerStateChanged()
 			}
 		}
 		return true
