@@ -1,0 +1,77 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master, main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    env:
+      NDK_VERSION: "23.1.7779620"     # default NDK of Android Gradle Plugin 7.4.1
+      CMAKE_VERSION: "3.22.1"         # pinned in android/app/build.gradle
+      BUILD_TOOLS_VERSION: "30.0.3"   # default build-tools of AGP 7.4.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # The source zip from GitHub has empty submodule folders. If they are still empty, clone them here.
+      - name: Fetch submodules if missing
+        run: |
+          fetch() { # path tag url [fallback-url]
+            if [ -z "$(ls -A "$1" 2>/dev/null)" ]; then
+              rm -rf "$1"
+              git clone --depth 1 --branch "$2" "$3" "$1" \
+                || git clone --depth 1 "$3" "$1" \
+                || { [ -n "$4" ] && git clone --depth 1 "$4" "$1"; }
+            fi
+          }
+          fetch third-party/nanopb       0.4.7  https://github.com/nanopb/nanopb.git
+          fetch third-party/jerasure     master https://github.com/thestr4ng3r/jerasure.git https://git.sr.ht/~thestr4ng3r/jerasure
+          fetch third-party/gf-complete  master https://github.com/thestr4ng3r/gf-complete.git https://git.sr.ht/~thestr4ng3r/gf-complete
+          fetch android/app/src/main/cpp/oboe 1.7.0 https://github.com/google/oboe
+          ls third-party/nanopb | head -3
+          ls third-party/jerasure | head -3
+          ls third-party/gf-complete | head -3
+          ls android/app/src/main/cpp/oboe | head -3
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Native build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler python3-pip perl make
+          pip3 install "protobuf==3.20.3"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: ''
+
+      - name: Install SDK / NDK / CMake
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-33" "build-tools;${BUILD_TOOLS_VERSION}" "ndk;${NDK_VERSION}" "cmake;${CMAKE_VERSION}"
+          echo "sdk.dir=${ANDROID_HOME}" > android/local.properties
+          echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: chiaki-mod-apk
+          path: android/app/build/outputs/apk/debug/*.apk
