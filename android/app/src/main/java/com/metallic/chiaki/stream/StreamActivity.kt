@@ -41,7 +41,7 @@ class StreamActivity : AppCompatActivity(), View.OnSystemUiVisibilityChangeListe
 	{
 		const val EXTRA_CONNECT_INFO = "connect_info"
 		private const val HIDE_UI_TIMEOUT_MS = 2000L
-		private const val STOP_SESSION_DELAY_MS = 2000L
+		private const val STOP_SESSION_DELAY_MS = 30000L
 	}
 
 	private lateinit var viewModel: StreamViewModel
